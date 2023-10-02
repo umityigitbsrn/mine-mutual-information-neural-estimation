@@ -30,7 +30,7 @@ mutual_information_dataset[:, :(2 * (degree_of_poly_T - 1) + 1)] = multiplied_po
 mutual_information_dataset[:, -2] = second_poly_dataset[:, -1]
 mutual_information_dataset[:, -1] = first_poly_dataset[:, -1]
 mutual_information_dataset = np.fliplr(mutual_information_dataset)
-mutual_information_dataset = mutual_information_dataset.astype(np.float64)
+mutual_information_dataset = mutual_information_dataset.astype(np.float64) / prime_p
 mutual_information_dataset = torch.from_numpy(mutual_information_dataset.copy())
 
 
@@ -65,8 +65,8 @@ class Mine(nn.Module):
         nn.init.constant_(self.fc3.bias, 0)
 
     def forward(self, input_arg):
-        output = F.elu(self.fc1(input_arg))
-        output = F.elu(self.fc2(output))
+        output = F.relu(self.fc1(input_arg))
+        output = F.relu(self.fc2(output))
         output = self.fc3(output)
         return output
 
@@ -98,7 +98,7 @@ def learn_mine(batch, mine_net, mine_net_optim, ma_et, ma_rate=0.01, device_arg=
     return mi_lb, ma_et
 
 
-def train(data, mine_net, mine_net_optim, batch_size=100, iter_num=int(5e+3), log_freq=100, device_arg=None):
+def train(data, mine_net, mine_net_optim, batch_size=50, iter_num=int(5e+3), log_freq=100, device_arg=None):
     # data is x or y
     result = list()
     ma_et = 1.
@@ -114,4 +114,4 @@ def train(data, mine_net, mine_net_optim, batch_size=100, iter_num=int(5e+3), lo
 torch.set_default_dtype(torch.float64)
 mine_net_sss = Mine(input_size=2 * (degree_of_poly_T - 1) + 3).to(device)
 mine_net_optim_sss = optim.Adam(mine_net_sss.parameters(), lr=1e-3)
-result_sss = train(mutual_information_dataset, mine_net_sss, mine_net_optim_sss, log_freq=10)
+result_sss = train(mutual_information_dataset, mine_net_sss, mine_net_optim_sss)

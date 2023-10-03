@@ -9,7 +9,7 @@ import torch.autograd as autograd
 
 # constants
 degree_of_poly_T = 5
-num_of_poly_N = 100
+num_of_poly_N = 10000
 prime_p = 2 ** 26 - 5
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -35,7 +35,7 @@ mutual_information_dataset = torch.from_numpy(mutual_information_dataset.copy())
 
 
 # sample from distributions for one dataset
-def sample_for_iteration(batch_size, dataset):
+def sample_for_iteration_all_coeff(batch_size, dataset):
     # sampling from joint distribution
     joint_idx = np.random.choice(dataset.shape[0], size=batch_size, replace=False)
     joint_batch = dataset[joint_idx]
@@ -51,22 +51,38 @@ def sample_for_iteration(batch_size, dataset):
     return joint_batch, marginal_batch
 
 
+def sample_for_iteration_first_coeff(batch_size, dataset):
+    # sampling from joint distribution
+    joint_idx = np.random.choice(dataset.shape[0], size=batch_size, replace=False)
+    joint_batch = dataset[joint_idx, :3]
+
+    # sampling from marginal distributions
+    ## first sample only for the secrets
+    secret_marginal_idx = np.random.choice(dataset.shape[0], size=batch_size, replace=False)
+    coeff_marginal_idx = np.random.choice(dataset.shape[0], size=batch_size, replace=False)
+    marginal_batch = torch.empty((batch_size, 3), dtype=dataset.dtype)
+    marginal_batch[:, :2] = dataset[secret_marginal_idx, :2]
+    marginal_batch[:, 2] = dataset[coeff_marginal_idx, 2]
+
+    return joint_batch, marginal_batch
+
+
 class Mine(nn.Module):
     def __init__(self, input_size=2, hidden_size=100):
         super().__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 1)
-        nn.init.normal_(self.fc1.weight, std=0.02)
+        nn.init.kaiming_normal_(self.fc1.weight, mode='fan_out')
         nn.init.constant_(self.fc1.bias, 0)
-        nn.init.normal_(self.fc2.weight, std=0.02)
+        nn.init.kaiming_normal_(self.fc2.weight, mode='fan_out')
         nn.init.constant_(self.fc2.bias, 0)
-        nn.init.normal_(self.fc3.weight, std=0.02)
+        nn.init.kaiming_normal_(self.fc3.weight, mode='fan_out')
         nn.init.constant_(self.fc3.bias, 0)
 
     def forward(self, input_arg):
-        output = F.relu(self.fc1(input_arg))
-        output = F.relu(self.fc2(output))
+        output = F.elu(self.fc1(input_arg))
+        output = F.elu(self.fc2(output))
         output = self.fc3(output)
         return output
 
@@ -103,7 +119,7 @@ def train(data, mine_net, mine_net_optim, batch_size=50, iter_num=int(5e+3), log
     result = list()
     ma_et = 1.
     for i in range(iter_num):
-        batch = sample_for_iteration(batch_size, data)
+        batch = sample_for_iteration_all_coeff(batch_size, data)
         mi_lb, ma_et = learn_mine(batch, mine_net, mine_net_optim, ma_et, device_arg=device_arg)
         result.append(mi_lb.detach().cpu().numpy())
         if (i + 1) % log_freq == 0:
